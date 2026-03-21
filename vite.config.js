@@ -11,13 +11,27 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Couple GPS Tracker',
-        short_name: 'GPS Tracker',
-        description: 'Private Real-Time Couple GPS Tracker',
+        name: 'for C and R',
+        short_name: 'for C and R',
+        description: 'for C and R',
         theme_color: '#4F46E5',
         background_color: '#ffffff',
         display: 'standalone',
-        orientation: 'portrait'
+        orientation: 'portrait',
+        icons: [
+          {
+            src: '/couple-hug.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
+          },
+          {
+            src: '/couple-hug.svg',
+            sizes: '192x192',
+            type: 'image/svg+xml',
+            purpose: 'any maskable'
+          }
+        ]
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
