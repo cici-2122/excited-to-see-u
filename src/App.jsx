@@ -1,10 +1,58 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
 import Map from './components/Map'
 import StatusBar from './components/StatusBar'
 import { useLocation } from './hooks/useLocation'
 import { usePartnerLocation } from './hooks/usePartnerLocation'
+
+// Generate a unique session ID
+const generateSessionId = () => {
+  return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+}
+
+// Check and update session in database
+const updateSession = async (userId, sessionId) => {
+  if (!userId || !sessionId) return null
+  
+  try {
+    const { data, error } = await supabase
+      .from('locations')
+      .upsert({
+        user_id: userId,
+        lat: 0,
+        lng: 0,
+        session_id: sessionId,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+      .select('session_id')
+      .single()
+    
+    if (error) throw error
+    return data?.session_id
+  } catch (err) {
+    console.error('Session update error:', err)
+    return null
+  }
+}
+
+// Get current session from database
+const getSession = async (userId) => {
+  if (!userId) return null
+  
+  try {
+    const { data, error } = await supabase
+      .from('locations')
+      .select('session_id')
+      .eq('user_id', userId)
+      .single()
+    
+    if (error) return null
+    return data?.session_id
+  } catch (err) {
+    return null
+  }
+}
 
 // Placeholder components for navigation
 const Album = () => (
@@ -165,7 +213,15 @@ const BottomNav = ({ currentTab, setCurrentTab }) => {
 
 function App() {
   const [userId, setUserId] = useState(null)
-  const [isTracking, setIsTracking] = useState(false)
+  const [isTracking, setIsTracking] = useState(() => {
+    const saved = localStorage.getItem('isTracking')
+    if (saved === null) return false
+    try {
+      return JSON.parse(saved)
+    } catch {
+      return false
+    }
+  })
   const [centerOnPartner, setCenterOnPartner] = useState(false)
   const [showRoute, setShowRoute] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -179,6 +235,10 @@ function App() {
       return false
     }
   })
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem('sessionId'))
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId  // Always keep ref in sync
+  const [showSessionAlert, setShowSessionAlert] = useState(false)
 
   // Check for existing session and saved identity on mount
   useEffect(() => {
@@ -188,6 +248,20 @@ function App() {
       if (session) {
         const savedIdentity = localStorage.getItem('userIdentity')
         if (savedIdentity) {
+          // Check existing session in DB
+          const existingSessionId = await getSession(savedIdentity)
+          
+          if (existingSessionId) {
+            // Use existing session - this is the same device returning
+            localStorage.setItem('sessionId', existingSessionId)
+            setSessionId(existingSessionId)
+          } else {
+            // No session exists - new device login
+            const newSessionId = generateSessionId()
+            localStorage.setItem('sessionId', newSessionId)
+            setSessionId(newSessionId)
+            await updateSession(savedIdentity, newSessionId)
+          }
           setUserId(savedIdentity)
         }
       }
@@ -207,6 +281,37 @@ function App() {
     }
     console.log('Dark mode:', isDarkMode) // Debug log
   }, [isDarkMode])
+
+  // Save tracking status to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('isTracking', JSON.stringify(isTracking))
+  }, [isTracking])
+
+  // Check for session changes (detect new login from another device)
+  useEffect(() => {
+    if (!userId || !sessionIdRef.current) return
+
+    const checkSession = async () => {
+      const currentSessionId = sessionIdRef.current
+      if (!currentSessionId) return
+      
+      const dbSessionId = await getSession(userId)
+      console.log('Checking session:', { dbSessionId, localSessionId: currentSessionId })
+      
+      if (dbSessionId && dbSessionId !== currentSessionId) {
+        // Session changed - another device logged in
+        console.log('Session mismatch detected!')
+        setShowSessionAlert(true)
+      }
+    }
+
+    // Check immediately
+    checkSession()
+
+    // Poll every 3 seconds (faster detection)
+    const interval = setInterval(checkSession, 3000)
+    return () => clearInterval(interval)
+  }, [userId])
 
   // My location hook
   const { 
@@ -240,8 +345,17 @@ function App() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     localStorage.removeItem('userIdentity')
+    localStorage.removeItem('sessionId')
     setUserId(null)
+    setSessionId(null)
     setIsTracking(false)
+    setShowSessionAlert(false)
+  }
+
+  // Handle forced logout due to new login
+  const handleForcedLogout = () => {
+    setShowSessionAlert(false)
+    handleLogout()
   }
 
   // Show loading while checking session
@@ -258,7 +372,16 @@ function App() {
 
   // Show auth if not logged in
   if (!userId) {
-    return <Auth onAuthComplete={setUserId} />
+    return <Auth 
+      onAuthComplete={async (identity) => {
+        // Generate new session ID
+        const newSessionId = generateSessionId()
+        localStorage.setItem('sessionId', newSessionId)
+        setSessionId(newSessionId)
+        await updateSession(identity, newSessionId)
+        setUserId(identity)
+      }} 
+    />
   }
 
   // Render current tab
@@ -310,7 +433,32 @@ function App() {
   }
 
   return (
-    <div className="w-full h-screen relative overflow-visible dark">
+    <div className={`w-full h-screen relative overflow-visible ${isDarkMode ? 'dark' : ''}`}>
+      {/* Session Alert Notification */}
+      {showSessionAlert && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 m-4 max-w-sm shadow-2xl">
+            <div className="flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-bold text-center text-gray-800 dark:text-white mb-2">
+              awit, may bagong login
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 text-center mb-6">
+              siya don ka na haha
+            </p>
+            <button
+              onClick={handleForcedLogout}
+              className="w-full py-3 px-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium transition-colors"
+            >
+              uki, logout
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       {renderContent()}
       

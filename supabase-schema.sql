@@ -6,8 +6,13 @@ CREATE TABLE IF NOT EXISTS public.locations (
   user_id TEXT PRIMARY KEY,
   lat DOUBLE PRECISION NOT NULL,
   lng DOUBLE PRECISION NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  session_id TEXT DEFAULT gen_random_uuid()
 );
+
+-- Add session_id column if table already exists (run separately if needed)
+-- ALTER TABLE public.locations ADD COLUMN IF NOT EXISTS session_id TEXT DEFAULT gen_random_uuid();
+-- UPDATE public.locations SET session_id = gen_random_uuid() WHERE session_id IS NULL;
 
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.locations ENABLE ROW LEVEL SECURITY;

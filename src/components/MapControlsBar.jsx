@@ -15,7 +15,8 @@ const MapControlsBar = ({
 }) => {
   const handleCenterOnMe = () => {
     if (mapRef.current && myLocation) {
-      mapRef.current.flyTo([myLocation.lat, myLocation.lng], 17, {
+      // Only center, don't change zoom
+      mapRef.current.flyTo([myLocation.lat, myLocation.lng], mapRef.current.getZoom(), {
         duration: 0.5
       })
     }
@@ -23,7 +24,8 @@ const MapControlsBar = ({
 
   const handleCenterOnPartner = () => {
     if (mapRef.current && partnerLocation) {
-      mapRef.current.flyTo([partnerLocation.lat, partnerLocation.lng], 15, {
+      // Only center, don't change zoom
+      mapRef.current.flyTo([partnerLocation.lat, partnerLocation.lng], mapRef.current.getZoom(), {
         duration: 1
       })
     }

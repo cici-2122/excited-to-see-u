@@ -33,7 +33,8 @@ const CenterOnPartner = ({ partnerLocation }) => {
   
   useEffect(() => {
     if (partnerLocation) {
-      map.flyTo([partnerLocation.lat, partnerLocation.lng], 15, {
+      // Only center, don't change zoom
+      map.flyTo([partnerLocation.lat, partnerLocation.lng], map.getZoom(), {
         duration: 1
       })
     }
@@ -50,7 +51,8 @@ const CenterOnMyLocation = ({ myLocation }) => {
   useEffect(() => {
     if (myLocation && !hasCenteredRef.current) {
       hasCenteredRef.current = true
-      map.flyTo([myLocation.lat, myLocation.lng], 17, {
+      // Only center, don't change zoom
+      map.flyTo([myLocation.lat, myLocation.lng], map.getZoom(), {
         duration: 1
       })
     }
@@ -88,8 +90,8 @@ const SimpleRouteLine = ({ myLocation, partnerLocation, showRoute }) => {
 
     lineRef.current = line
 
-    // Fit map to show both points
-    map.fitBounds(line.getBounds(), { padding: [50, 50] })
+    // Don't auto-zoom - let user control zoom
+    // map.fitBounds(line.getBounds(), { padding: [50, 50] })
 
     return () => {
       if (lineRef.current) {
@@ -154,8 +156,8 @@ const RouteDrawer = ({ myLocation, partnerLocation, showRoute }) => {
           // Group them together
           routeLayerRef.current = L.layerGroup([polyline, polylineTop]).addTo(map)
 
-          // Fit map to show whole route
-          map.fitBounds(polyline.getBounds(), { padding: [50, 50] })
+          // Don't auto-zoom when showing route - just draw the line
+          // Users can manually zoom as needed
 
           // Set route info
           const distanceKm = (route.distance / 1000).toFixed(1)
@@ -215,7 +217,8 @@ const Map = ({
 
   const handleCenterOnPartner = () => {
     if (mapRef.current && partnerLocation) {
-      mapRef.current.flyTo([partnerLocation.lat, partnerLocation.lng], 15, {
+      // Only center, don't change zoom
+      mapRef.current.flyTo([partnerLocation.lat, partnerLocation.lng], mapRef.current.getZoom(), {
         duration: 1
       })
     }
