@@ -81,6 +81,8 @@ const MapScreen = ({
   locationError,
   myLastUpdate,
   partnerLastUpdate,
+  partnerIsActive,
+  partnerIsInactive,
   onLogout,
   userId
 }) => (
@@ -91,6 +93,8 @@ const MapScreen = ({
       locationError={locationError}
       isTracking={isTracking}
       userId={userId}
+      myIsActive={isTracking}
+      partnerIsActive={partnerIsActive}
     />
     <Map 
       myLocation={myLocation}
@@ -102,6 +106,7 @@ const MapScreen = ({
       isTracking={isTracking}
       setIsTracking={setIsTracking}
       userId={userId}
+      partnerIsInactive={partnerIsInactive}
     />
   </div>
 )
@@ -323,7 +328,9 @@ function App() {
   // Partner location hook
   const { 
     partnerLocation, 
-    partnerLastUpdate 
+    partnerLastUpdate,
+    partnerIsActive,
+    partnerIsInactive
   } = usePartnerLocation(userId)
 
   // Request location permission and start tracking
@@ -403,6 +410,8 @@ function App() {
             locationError={locationError}
             myLastUpdate={myLastUpdate}
             partnerLastUpdate={partnerLastUpdate}
+            partnerIsActive={partnerIsActive}
+            partnerIsInactive={partnerIsInactive}
             onLogout={handleLogout}
             userId={userId}
           />

@@ -10,7 +10,7 @@ export const useLocation = (userId, isTracking) => {
   const currentLocationRef = useRef(null)
 
   // Function to update location in Supabase
-  const updateLocation = useCallback(async (lat, lng) => {
+  const updateLocation = useCallback(async (lat, lng, isActive = true) => {
     if (!userId) return
 
     try {
@@ -21,7 +21,8 @@ export const useLocation = (userId, isTracking) => {
             user_id: userId,
             lat,
             lng,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            is_active: isActive
           },
           { onConflict: 'user_id' }
         )
@@ -97,6 +98,10 @@ export const useLocation = (userId, isTracking) => {
       }
       if (updateIntervalRef.current) {
         clearInterval(updateIntervalRef.current)
+      }
+      // Set is_active to false when tracking stops
+      if (currentLocationRef.current) {
+        updateLocation(currentLocationRef.current.lat, currentLocationRef.current.lng, false)
       }
     }
   }, [isTracking, userId, updateLocation])

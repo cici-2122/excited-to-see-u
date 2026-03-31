@@ -14,13 +14,14 @@ L.Icon.Default.mergeOptions({
 })
 
 // Custom marker icons
-const createCustomIcon = (type, userColors, partnerColors) => {
+const createCustomIcon = (type, userColors, partnerColors, isInactive = false) => {
   const colors = type === 'me' ? userColors : partnerColors
   const initial = type === 'me' ? userColors.name : partnerColors.name
+  const bgColor = isInactive ? '#9CA3AF' : colors.primary // Gray when inactive
   
   return L.divIcon({
     className: 'custom-marker-wrapper',
-    html: `<div class="custom-marker marker-${type}" style="background-color: ${colors.primary}">${initial}</div>`,
+    html: `<div class="custom-marker marker-${type}" style="background-color: ${bgColor}">${initial}</div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
     popupAnchor: [0, -16]
@@ -61,55 +62,11 @@ const CenterOnMyLocation = ({ myLocation }) => {
   return null
 }
 
-// Simple straight line route (fallback when OSRM fails)
-const SimpleRouteLine = ({ myLocation, partnerLocation, showRoute }) => {
-  const map = useMap()
-  const lineRef = useRef(null)
-
-  useEffect(() => {
-    if (!map) return
-
-    // Remove existing line
-    if (lineRef.current) {
-      map.removeLayer(lineRef.current)
-      lineRef.current = null
-    }
-
-    if (!myLocation || !partnerLocation || !showRoute) return
-
-    // Draw a simple straight line
-    const line = L.polyline(
-      [[myLocation.lat, myLocation.lng], [partnerLocation.lat, partnerLocation.lng]],
-      {
-        color: '#8B5CF6',
-        weight: 4,
-        opacity: 0.7,
-        dashArray: '10, 10'
-      }
-    ).addTo(map)
-
-    lineRef.current = line
-
-    // Don't auto-zoom - let user control zoom
-    // map.fitBounds(line.getBounds(), { padding: [50, 50] })
-
-    return () => {
-      if (lineRef.current) {
-        map.removeLayer(lineRef.current)
-        lineRef.current = null
-      }
-    }
-  }, [map, myLocation, partnerLocation, showRoute])
-
-  return null
-}
-
-// Route drawer component
+// Route drawer component - handles both OSRM and simple line fallback
 const RouteDrawer = ({ myLocation, partnerLocation, showRoute }) => {
   const map = useMap()
   const routeLayerRef = useRef(null)
   const [routeInfo, setRouteInfo] = useState(null)
-  const [useSimpleLine, setUseSimpleLine] = useState(false)
 
   useEffect(() => {
     if (!map) return
@@ -120,7 +77,6 @@ const RouteDrawer = ({ myLocation, partnerLocation, showRoute }) => {
       routeLayerRef.current = null
     }
     setRouteInfo(null)
-    setUseSimpleLine(false)
 
     if (!myLocation || !partnerLocation || !showRoute) return
 
@@ -156,23 +112,33 @@ const RouteDrawer = ({ myLocation, partnerLocation, showRoute }) => {
           // Group them together
           routeLayerRef.current = L.layerGroup([polyline, polylineTop]).addTo(map)
 
-          // Don't auto-zoom when showing route - just draw the line
-          // Users can manually zoom as needed
-
           // Set route info
           const distanceKm = (route.distance / 1000).toFixed(1)
           const timeMin = Math.round(route.duration / 60)
           setRouteInfo({ distance: distanceKm, time: timeMin })
         } else {
           // No route found, use simple line
-          setUseSimpleLine(true)
+          drawSimpleLine()
         }
       })
       .catch(err => {
         clearTimeout(timeoutId)
         console.log('Route fetch failed, using simple line:', err.message)
-        setUseSimpleLine(true)
+        drawSimpleLine()
       })
+
+    const drawSimpleLine = () => {
+      const line = L.polyline(
+        [[myLocation.lat, myLocation.lng], [partnerLocation.lat, partnerLocation.lng]],
+        {
+          color: '#8B5CF6',
+          weight: 4,
+          opacity: 0.7,
+          dashArray: '10, 10'
+        }
+      ).addTo(map)
+      routeLayerRef.current = line
+    }
 
     return () => {
       clearTimeout(timeoutId)
@@ -201,7 +167,8 @@ const Map = ({
   onToggleRoute,
   isTracking,
   setIsTracking,
-  userId
+  userId,
+  partnerIsInactive
 }) => {
   // Get colors based on user identity
   const userColors = getUserColors(userId)
@@ -258,7 +225,7 @@ const Map = ({
         {partnerLocation && (
           <Marker 
             position={[partnerLocation.lat, partnerLocation.lng]}
-            icon={createCustomIcon('partner', userColors, partnerColors)}
+            icon={createCustomIcon('partner', userColors, partnerColors, partnerIsInactive)}
           >
             <Popup>
               <div className="text-center">
@@ -275,15 +242,8 @@ const Map = ({
         {/* Center on my location when first loaded */}
         <CenterOnMyLocation myLocation={myLocation} />
 
-        {/* Route Drawer */}
+        {/* Route Drawer - handles both OSRM and simple line fallback */}
         <RouteDrawer
-          myLocation={myLocation}
-          partnerLocation={partnerLocation}
-          showRoute={showRoute}
-        />
-        
-        {/* Simple fallback line when OSRM fails */}
-        <SimpleRouteLine
           myLocation={myLocation}
           partnerLocation={partnerLocation}
           showRoute={showRoute}
