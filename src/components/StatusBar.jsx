@@ -1,6 +1,15 @@
+import { useState, useEffect } from 'react'
 import { USER_IDS, getUserColors, getPartnerColors } from '../lib/supabase'
 
 const StatusBar = ({ myLastUpdate, partnerLastUpdate, locationError, isTracking, userId, myIsActive, partnerIsActive }) => {
+  const [, setTick] = useState(0)
+
+  // Auto-refresh time display every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 10000)
+    return () => clearInterval(interval)
+  }, [])
+
   // Get my label (C or R) based on current user
   // Default to 'C' if userId is not available yet
   const isBigC = userId === USER_IDS.BIG_C

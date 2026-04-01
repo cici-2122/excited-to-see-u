@@ -16,12 +16,19 @@ const updateSession = async (userId, sessionId) => {
   if (!userId || !sessionId) return null
   
   try {
+    // Preserve existing coordinates instead of overwriting with 0,0
+    const { data: existing } = await supabase
+      .from('locations')
+      .select('lat, lng')
+      .eq('user_id', userId)
+      .single()
+
     const { data, error } = await supabase
       .from('locations')
       .upsert({
         user_id: userId,
-        lat: 0,
-        lng: 0,
+        lat: existing?.lat ?? 0,
+        lng: existing?.lng ?? 0,
         session_id: sessionId,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' })
@@ -313,8 +320,8 @@ function App() {
     // Check immediately
     checkSession()
 
-    // Poll every 3 seconds (faster detection)
-    const interval = setInterval(checkSession, 3000)
+    // Poll every 10 seconds
+    const interval = setInterval(checkSession, 10000)
     return () => clearInterval(interval)
   }, [userId])
 
@@ -350,9 +357,18 @@ function App() {
   }, [userId])
 
   const handleLogout = async () => {
+    // Mark as inactive before signing out so partner sees grey immediately
+    if (userId) {
+      await supabase.from('locations').upsert({
+        user_id: userId,
+        is_active: false,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' }).catch(() => {})
+    }
     await supabase.auth.signOut()
     localStorage.removeItem('userIdentity')
     localStorage.removeItem('sessionId')
+    localStorage.removeItem('isTracking')
     setUserId(null)
     setSessionId(null)
     setIsTracking(false)
@@ -435,6 +451,8 @@ function App() {
           locationError={locationError}
           myLastUpdate={myLastUpdate}
           partnerLastUpdate={partnerLastUpdate}
+          partnerIsActive={partnerIsActive}
+          partnerIsInactive={partnerIsInactive}
           onLogout={handleLogout}
           userId={userId}
         />

@@ -80,6 +80,19 @@ const RouteDrawer = ({ myLocation, partnerLocation, showRoute }) => {
 
     if (!myLocation || !partnerLocation || !showRoute) return
 
+    const drawSimpleLine = (from, to, targetMap) => {
+      const line = L.polyline(
+        [[from.lat, from.lng], [to.lat, to.lng]],
+        {
+          color: '#8B5CF6',
+          weight: 4,
+          opacity: 0.7,
+          dashArray: '10, 10'
+        }
+      ).addTo(targetMap)
+      routeLayerRef.current = line
+    }
+
     // Try fetching route from OSRM
     const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${myLocation.lng},${myLocation.lat};${partnerLocation.lng},${partnerLocation.lat}?overview=full&geometries=geojson`
 
@@ -95,21 +108,18 @@ const RouteDrawer = ({ myLocation, partnerLocation, showRoute }) => {
           const route = data.routes[0]
           const coordinates = route.geometry.coordinates.map(coord => [coord[1], coord[0]])
 
-          // Create polyline
           const polyline = L.polyline(coordinates, {
             color: '#8B5CF6',
             weight: 6,
             opacity: 0.8
-          }).addTo(map)
+          })
 
-          // Create alternative lighter line on top
           const polylineTop = L.polyline(coordinates, {
             color: '#A78BFA',
             weight: 3,
             opacity: 1
-          }).addTo(map)
+          })
 
-          // Group them together
           routeLayerRef.current = L.layerGroup([polyline, polylineTop]).addTo(map)
 
           // Set route info
@@ -118,30 +128,19 @@ const RouteDrawer = ({ myLocation, partnerLocation, showRoute }) => {
           setRouteInfo({ distance: distanceKm, time: timeMin })
         } else {
           // No route found, use simple line
-          drawSimpleLine()
+          drawSimpleLine(myLocation, partnerLocation, map)
         }
       })
       .catch(err => {
         clearTimeout(timeoutId)
+        if (err.name === 'AbortError') return
         console.log('Route fetch failed, using simple line:', err.message)
-        drawSimpleLine()
+        drawSimpleLine(myLocation, partnerLocation, map)
       })
-
-    const drawSimpleLine = () => {
-      const line = L.polyline(
-        [[myLocation.lat, myLocation.lng], [partnerLocation.lat, partnerLocation.lng]],
-        {
-          color: '#8B5CF6',
-          weight: 4,
-          opacity: 0.7,
-          dashArray: '10, 10'
-        }
-      ).addTo(map)
-      routeLayerRef.current = line
-    }
 
     return () => {
       clearTimeout(timeoutId)
+      controller.abort()
       if (routeLayerRef.current) {
         map.removeLayer(routeLayerRef.current)
         routeLayerRef.current = null

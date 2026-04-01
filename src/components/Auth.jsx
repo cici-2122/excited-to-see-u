@@ -22,6 +22,12 @@ const Auth = ({ onAuthComplete }) => {
           password
         })
         if (error) throw error
+        // Check if user is actually signed in (email confirmation may be required)
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          setError('check your email to confirm your account, then sign in')
+          return
+        }
         setShowIdentitySelect(true)
       } else {
         const { error } = await supabase.auth.signInWithPassword({
